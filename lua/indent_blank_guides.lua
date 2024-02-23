@@ -8,8 +8,6 @@ local get_default_options = function()
     indent_guide_size = 1;
     indent_start_level = 1;
     indent_enable = true;
-    --FIXME:
-    indent_pretty_mode = false;
     indent_space_guides = true;
     indent_tab_guides = false;
     indent_soft_pattern = '\\s';
@@ -93,62 +91,6 @@ local keyword = {
   [';'] = true
 }
 
-function M.render_blank_line()
-  local indent_size = get_indent_size()
-  local indent_namespace = get_indent_namespace()
-
-  local async_render_blank
-  async_render_blank = uv.new_async(vim.schedule_wrap(function ()
-    if vim.fn.index(new_opts.exclude_filetypes,vim.bo.filetype) ~= -1 then
-      return
-    end
-    local lines = api.nvim_buf_get_lines(0,0,-1,false)
-    local prev_line_guides = {}
-    for key,text in ipairs(lines) do
-      local idt = vim.fn.cindent(key)
-      if #text == 0 and idt > 0 then
-        local tbl = vim.fn.range(math.floor(idt / indent_size))
-        local guides = {}
-        if #lines[key - 1] == 0 then
-          guides = prev_line_guides
-        else
-          for k,level in pairs(tbl) do
-            if level % 2 == 0 then
-              guides[#guides+1] = {' ','IndentBlankGuidesEvenVirtext'}
-            else
-              guides[#guides+1] = {' ','IndentBlankGuidesOddVirtext'}
-            end
-            if #tbl > 1 then
-              for i=1,indent_size -1 , 1 do
-                guides[#guides+1] = {' ',''}
-              end
-            end
-            local fist_char = lines[key-1]:match('%S+')
-            local last_char = lines[key-1]:sub(#lines[key-1],-1)
-            if keyword[fist_char] and not keyword[last_char] and k == #tbl then
-              if #tbl == 1 then
-                guides[#guides+1] = {' ',''}
-              end
-              if guides[#guides - 1][2]  == 'IndentBlankGuidesEvenVirtext' then
-                guides[#guides+1] = {' ','IndentBlankGuidesOddVirtext'}
-              else
-                guides[#guides+1] = {' ','IndentBlankGuidesEvenVirtext'}
-              end
-            end
-          end
-          prev_line_guides = guides
-        end
-        api.nvim_buf_set_extmark(0,indent_namespace,key - 1,0,{
-          virt_text = guides,
-          virt_text_pos = 'overlay'
-        })
-      end
-    end
-    async_render_blank:close()
-  end))
-  async_render_blank:send()
-end
-
 local indent_blank_guides_enable = function()
   if vim.fn.index(new_opts.exclude_filetypes,vim.bo.filetype) ~= -1 then
     indent_clear_matches()
@@ -183,9 +125,6 @@ local indent_blank_guides_enable = function()
   end
 
   indent_render()
-  if new_opts.indent_pretty_mode then
-    M.render_blank_line()
-  end
 end
 
 local indent_enabled = true
@@ -244,9 +183,6 @@ function  M.indent_blank_guides_augroup()
   api.nvim_command('augroup indent_blank_guides_nvim')
   api.nvim_command('autocmd!')
   api.nvim_command('autocmd WinEnter,BufEnter,FileType * lua vim.schedule(require("indent_blank_guides").indent_blank_guides_enable)')
-  if new_opts.indent_pretty_mode then
-    api.nvim_command('autocmd TextChanged,TextChangedI * lua require("indent_blank_guides").render_blank_line()')
-  end
   api.nvim_command('augroup END')
 end
 
